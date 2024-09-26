@@ -1,35 +1,83 @@
-const router = require('express').Router();
-const { User } = require('../models');
-const withAuth = require('../utils/auth');
+const router = require("express").Router();
+const { User, Expense, Total } = require("../models");
+const withAuth = require("../utils/auth");
 
-// TODO: Add a comment describing the functionality of the withAuth middleware
-router.get('/', withAuth, async (req, res) => {
+//route to homepage
+router.get("/", async (req, res) => {
   try {
-    const userData = await User.findAll({
-      attributes: { exclude: ['password'] },
-      order: [['name', 'ASC']],
+    res.render("homepage");
+  } catch (err) {
+    res.status(500).json(err);
+  }
+});
+
+//route to sign up page
+router.get("/signUp", async (req, res) => {
+  try {
+    res.render("signUp");
+  } catch (err) {
+    res.status(500).json(err);
+  }
+});
+
+//route to application page
+router.get("/form", withAuth, async (req, res) => {
+  try {
+    res.render("form");
+  } catch (err) {
+    res.status(500).json(err);
+  }
+});
+
+//route to profile page (userInfo display)
+router.get("/profile", withAuth, async (req, res) => {
+  try {
+    //Get the logged in user based on Session ID
+    const userData = await User.findByPk(req.session.user_id, {
+      attributes: { exclude: ["password"] },
     });
 
-    const users = userData.map((project) => project.get({ plain: true }));
+    const user = userData.get({ plain: true });
 
-    res.render('homepage', {
-      users,
-      // TODO: Add a comment describing the functionality of this property
-      logged_in: req.session.logged_in,
+    const expensePromise = Expense.findAll({
+      where: { user_id: req.session.user_id },
+      attributes: ["id", "amount", "category_id"],
+    });
+
+    const totalPromise = Total.findAll({
+      where: { user_id: req.session.user_id },
+      attributes: ["id", "budget_amt", "remainder_amt", "user_id"],
+    });
+
+    const [expenseData, totalData] = await Promise.all([
+      expensePromise,
+      totalPromise,
+    ]);
+
+    const expenses = expenseData.map((expense) => expense.get({ plain: true }));
+    const totals = totalData.map((total) => total.get({ plain: true }));
+
+    console.log("expense data: ", expenses);
+    console.log("Total data: ", totals);
+
+    res.render("profile", {
+      user,
+      expenses,
+      totals,
+      logged_in: true,
     });
   } catch (err) {
     res.status(500).json(err);
   }
 });
 
-router.get('/login', (req, res) => {
-  // TODO: Add a comment describing the functionality of this if statement
+//route to login page
+router.get("/login", (req, res) => {
   if (req.session.logged_in) {
-    res.redirect('/');
+    res.redirect("form");
     return;
   }
-
-  res.render('login');
+  res.render("login");
 });
 
 module.exports = router;
